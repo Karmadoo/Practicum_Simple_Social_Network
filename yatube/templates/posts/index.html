@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}
+  Это заглавная страница Yatube.
+{% endblock %}
+{% block content %}
+  <div class="container py-5">     
+    <h1>Последние обновления на сайте</h1>
+    <article>
+      {% for post in page_obj %} 
+        <ul>
+          <li>
+            Автор: <a href="{% url 'posts:profile' post.author.username %}"> {{ post.author.get_full_name }}</a>
+          </li>
+          <li>
+            Дата публикации: {{ post.pub_date|date:"d E Y" }}
+          </li>
+        </ul>      
+        <p>{{ post.text|linebreaksbr }}</p>
+        {% if post.author == user %}
+          <li>
+            <a href="{% url 'posts:post_edit' post.id %}">Редактировать запись</a>
+          </li>
+        {% endif %}
+        {% if post.group %}
+          все записи группы <a href={% url 'posts:group_list' post.group.slug %}>{{post.group.slug}}</a>  
+        {% endif %}
+        {% if not forloop.last %}<hr>{% endif %}
+      {% endfor %}
+      {% include 'posts/includes/paginator.html' %}
+    </article>
+  </div>  
+{% endblock %}
