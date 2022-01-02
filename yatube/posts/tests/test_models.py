@@ -1,9 +1,7 @@
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from . .models import Group, Post
+from ..models import Group, Post, User
 
-User = get_user_model()
 
 
 class PostModelTest(TestCase):
@@ -21,11 +19,36 @@ class PostModelTest(TestCase):
             text='Тестовая группа',
         )
 
-    def test_models_have_correct_object_names(self):
+    def test_models_has_correct_object_names(self):
         '''Checking that models has correct __str__ method.'''
-        group = PostModelTest.group
-        post = PostModelTest.post
-        expected_group_name = group.title
-        expected_post_name = post.text
-        self.assertEqual(expected_group_name, str(group))
-        self.assertEqual(expected_post_name, str(post))
+        group = self.group
+        post = self.post
+        self.assertEqual(group.title, str(group))
+        self.assertEqual(post.text, str(post))
+
+    def test_group_has_correct_verbose_names(self):
+        group = self.group
+        field_verboses = {
+            'title': 'Заголовок',
+            'slug': 'Уникальное название',
+            'description': 'Описание'
+        }
+        for field, expected_value in field_verboses.items():
+            with self.subTest(field=field):
+                self.assertEqual(
+                    group._meta.get_field(field).verbose_name, expected_value
+                )
+
+    def test_post_has_correct_verbose_names(self):
+        post = self.post
+        field_verboses = {
+            'text': 'Текст поста',
+            'pub_date': 'Дата публикации',
+            'author': 'Автор',
+            'group': 'Группа'
+        }
+        for field, expected_value in field_verboses.items():
+            with self.subTest(field=field):
+                self.assertEqual(
+                    post._meta.get_field(field).verbose_name, expected_value
+                )    

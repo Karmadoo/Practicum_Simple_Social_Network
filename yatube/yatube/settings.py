@@ -23,9 +23,16 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = '5%u=i&xyv9r(&y46&giwg@ljtt(1yy46gf)q)g-g)zb1cm1ch)'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
+# DEBUG_PROPAGATE_EXCEPTIONS = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+    'testserver',
+    '*'
+]
 
 
 # Application definition
@@ -139,3 +146,5 @@ EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver', ]
+
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
