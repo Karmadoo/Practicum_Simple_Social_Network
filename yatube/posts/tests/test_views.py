@@ -64,7 +64,7 @@ class PostURLTests(TestCase):
             MAIN_PAGE,
             self.GROUP_LIST,
             self.PROFILE,
-            self.POST_DETAIL1,
+            self.POST_DETAIL,
         ]
         for url in urls:
             with self.subTest(url=url):
