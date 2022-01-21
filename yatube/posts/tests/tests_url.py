@@ -16,4 +16,3 @@ class StaticURLTests(TestCase):
     def test_abouth_tech(self):
         response = self.guest_client.get('/about/tech/')
         self.assertEqual(response.status_code, 200)
-

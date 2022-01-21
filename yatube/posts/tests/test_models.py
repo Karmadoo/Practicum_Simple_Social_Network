@@ -3,7 +3,6 @@ from django.test import TestCase
 from ..models import Group, Post, User
 
 
-
 class PostModelTest(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -51,4 +50,4 @@ class PostModelTest(TestCase):
             with self.subTest(field=field):
                 self.assertEqual(
                     post._meta.get_field(field).verbose_name, expected_value
-                )    
+                )

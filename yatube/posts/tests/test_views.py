@@ -1,14 +1,18 @@
-from django.contrib.auth import get_user_model
-# from django.http import response
+import random
+
+
+from posts.settings import (
+    POSTS_PER_PAGE, POSTS_SECOND_PAGE, PAGE_START, PAGE_END
+)
+
+
 from django.test import TestCase, Client
 from django.urls import reverse
-from django import forms
 
-import datetime as dt
+from posts.models import Post, Group, User
 
-from posts.models import Post, Group
 
-User = get_user_model()
+MAIN_PAGE = reverse('posts:main_page')
 
 
 class PostURLTests(TestCase):
@@ -21,159 +25,95 @@ class PostURLTests(TestCase):
             slug='test_slug',
             description='Тестовое описание',
         )
-        cls.posts = []
+        cls.one_more_group = Group.objects.create(
+            title='Другой тестовый заголовок',
+            slug='another_test_slug',
+            description='Еще тестовое описание',
+        )
+        cls.GROUP_LIST = reverse('posts:group_list', args=[cls.group.slug])
+        cls.ANOTHER_GROUP_LIST = reverse(
+            'posts:group_list', args=[cls.one_more_group.slug]
+        )
+        cls.PROFILE = reverse('posts:profile', args=[cls.user.username])
 
-        for id in range(13):
-            post = Post.objects.create(
-                id=id,
-                text='Тестовый псто',
+        cls.posts = []
+        for i in range(13):
+            cls.posts.append(Post(
+                text=f'Тестовый псто {i}',
                 author=cls.user,
-                group=cls.group)
-            cls.posts.append(post)
+                group=cls.group,
+                id=i,
+            ))
+        Post.objects.bulk_create(cls.posts)
+
+        cls.random_post = random.choice(
+            Post.objects.filter(id__range=(PAGE_START, PAGE_END))
+        )
+        cls.POST_DETAIL = reverse(
+            'posts:post_detail', args=[cls.random_post.id]
+        )
+        cls.POST_EDIT = reverse('posts:post_edit', args=[cls.random_post.id])
 
         cls.guest_client = Client()
         cls.authorized_client = Client()
         cls.authorized_client.force_login(cls.user)
 
-    def test_pages_uses_correct_template(self):
-        '''URL использует соответствующий шаблон'''
-        templates_pages_names = {
-            reverse('posts:main_page'): 'posts/index.html',
-            reverse('posts:group_list',
-                    kwargs={'slug': 'test_slug'}): 'posts/group_list.html',
-            reverse('posts:profile',
-                    args=['SomeUsername']): 'posts/profile.html',
-            reverse('posts:post_detail',
-                    args=['3']): 'posts/post_detail.html',
-            reverse('posts:post_create'): 'posts/create_post.html',
-            reverse('posts:post_edit',
-                    args=['3']): 'posts/create_post.html',
-        }
-        for reverse_name, template in templates_pages_names.items():
-            with self.subTest(reverse_name=reverse_name):
-                response = self.authorized_client.get(reverse_name)
-                self.assertTemplateUsed(response, template)
+    def test_pages_has_correct_context(self):
+        '''The page tamplates withs the right context'''
+        urls = [
+            MAIN_PAGE,
+            self.GROUP_LIST,
+            self.PROFILE,
+            self.POST_DETAIL1,
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.authorized_client.get(url)
+                post_list = response.context['page_obj']
+                for checking_post in post_list:
+                    if checking_post.id == self.random_post.id:
+                        return checking_post
+                self.assertEqual(checking_post.text, self.random_post.text)
+                self.assertEqual(checking_post.author, self.random_post.author)
+                self.assertEqual(checking_post.group, self.random_post.group)
+                self.assertEqual(checking_post.id, self.random_post.id)
 
-    def test_main_page_correct_context(self):
-        '''Шаблон главной страницысформирован с правильным контекстом'''
-        response = self.authorized_client.get(reverse('posts:main_page'))
-        first_object = response.context['page_obj'][0]
-        post_pub_date_0 = first_object.pub_date.date()
-        post_text_0 = first_object.text
-        post_author_0 = first_object.author
-        post_group_0 = first_object.group
-        # self.assertEqual(post_pub_date_0, dt.date.today())
-        self.assertEqual(post_text_0, 'Тестовый псто')
-        self.assertEqual(post_author_0, self.user)
-        self.assertEqual(post_group_0, self.group)
+    def test_paginators_first_page(self):
+        urls = [MAIN_PAGE, self.GROUP_LIST, self.PROFILE]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(
+                    len(response.context['page_obj']), POSTS_PER_PAGE
+                )
 
-    def test_index_paginator_first_page(self):
-        response = self.client.get(reverse('posts:main_page'))
-        self.assertEqual(len(response.context['page_obj']), 10)
-
-    def test_index_paginator_second_page(self):
-        response = self.client.get(reverse('posts:main_page') + '?page=2')
-        self.assertEqual(len(response.context['page_obj']), 3)
+    def test_paginators_second_page(self):
+        urls = [MAIN_PAGE, self.GROUP_LIST, self.PROFILE]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url + '?page=2')
+                self.assertEqual(
+                    len(response.context['page_obj']), POSTS_SECOND_PAGE
+                )
 
     def test_group_list_has_correct_context(self):
         '''Шаблон группы сформирован с правильным контекстом'''
-        response = self.authorized_client.get(reverse('posts:group_list',
-                                              kwargs={'slug': 'test_slug'}))
-        first_object = response.context['page_obj'][0]
-        second_object = response.context['group']
-        post_pub_date_0 = first_object.pub_date.date()
-        post_text_0 = first_object.text
-        post_author_0 = first_object.author
-        group_title_0 = second_object.title
-        group_description_0 = second_object.description
-        # self.assertEqual(post_pub_date_0, dt.date.today())
-        self.assertEqual(post_text_0, 'Тестовый псто')
-        self.assertEqual(post_author_0, self.user)
-        self.assertEqual(group_title_0, 'Тестовый заголовок')
-        self.assertEqual(group_description_0, 'Тестовое описание')
-
-    def test_group_list_paginator_first_page(self):
-        response = self.client.get(reverse('posts:group_list',
-                                           kwargs={'slug': 'test_slug'}))
-        self.assertEqual(len(response.context['page_obj']), 10)
-
-    def test_group_list_paginator_second_page(self):
-        response = self.client.get(
-            reverse('posts:group_list',
-                    kwargs={'slug': 'test_slug'}) + '?page=2')
-        self.assertEqual(len(response.context['page_obj']), 3)
+        response = self.authorized_client.get(self.GROUP_LIST)
+        group_object = response.context['group']
+        self.assertEqual(group_object.title, self.group.title)
+        self.assertEqual(group_object.description, self.group.description)
+        self.assertEqual(group_object.slug, self.group.slug)
+        self.assertEqual(group_object.pk, self.group.pk)
 
     def test_profile_has_correct_context(self):
         '''Шаблон профиля сформирован с правильным контекстом'''
-        response = self.authorized_client.get(reverse('posts:profile',
-                                                      args=['SomeUsername']))
-        first_object = response.context['page_obj'][0]
-        second_object = response.context['author']
-        post_pub_date_0 = first_object.pub_date.date()
-        post_text_0 = first_object.text
-        post_group_0 = first_object.group
-        post_author_0 = second_object.username
-        #  self.assertEqual(post_pub_date_0, dt.date.today())
-        self.assertEqual(post_text_0, 'Тестовый псто')
-        self.assertEqual(post_author_0, 'SomeUsername')
-        self.assertEqual(post_group_0, self.group)
-
-    def test_author_paginator_first_page(self):
-        response = self.client.get(reverse('posts:profile',
-                                           args=['SomeUsername']))
-        self.assertEqual(len(response.context['page_obj']), 10)
-
-    def test_author_paginator_second_page(self):
-        response = self.client.get(
-            reverse('posts:profile',
-                    args=['SomeUsername']) + '?page=2')
-        self.assertEqual(len(response.context['page_obj']), 3)
-
-    def test_post_detail_has_correct_context(self):
-        '''Шаблон поста сформирован с правильным контекстом'''
-        response = self.authorized_client.get(
-            reverse('posts:post_detail',
-                    args=['3']))
-        first_object = response.context['post']
-        post_pub_date_0 = first_object.pub_date.date()
-        post_text_0 = first_object.text
-        post_author_0 = first_object.author
-        post_group_0 = first_object.group
-        # self.assertEqual(post_pub_date_0, dt.date.today())
-        self.assertEqual(post_text_0, 'Тестовый псто')
-        self.assertEqual(post_author_0, self.user)
-        self.assertEqual(post_group_0, self.group)
-
-    def test_create_post_has_correct_form(self):
-        '''Шаблон создания поста сформирован с правильным контекстом'''
-        response = self.authorized_client.get(
-            reverse('posts:post_create'))
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField
-        }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
-
-    def test_post_edit_has_correct_form(self):
-        '''Шаблон изменения поста сформирован с правильным контекстом'''
-        response = self.authorized_client.get(
-            reverse('posts:post_edit',
-                    args=['3']))
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField
-        }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
+        response = self.authorized_client.get(self.PROFILE)
+        self.assertEqual(
+            response.context['author'].username, self.user.username
+        )
 
     def test_post_to_the_right_group(self):
         '''Пост попадает в правильную группу'''
-        response = self.authorized_client.get(reverse('posts:main_page'))
-        post = response.context['page_obj'][0]
-        group = post.group
-        self.assertEqual(group, self.group)
+        response = self.authorized_client.get(self.ANOTHER_GROUP_LIST)
+        group_object = response.context['page_obj']
+        self.assertNotIn(self.random_post, group_object)

@@ -1,10 +1,7 @@
 from http import HTTPStatus
 
 
-from django.http import response
-
-
-from django.test import TestCase, Client, client
+from django.test import TestCase, Client
 from django.urls import reverse
 
 
@@ -14,6 +11,8 @@ from posts.models import Post, Group, User
 MAIN_PAGE = reverse('posts:main_page')
 CREATE = reverse('posts:post_create')
 UNEXISTING = '/unexisting/'
+LOGIN = reverse('users:login')
+
 
 class PostURLTests(TestCase):
     @classmethod
@@ -25,16 +24,16 @@ class PostURLTests(TestCase):
             slug='test_slug',
             description='Тестовое описание',
         )
-        cls.GROUP_LIST = reverse('posts:group_list', args = [cls.group.slug])
-        cls.PROFILE = reverse('posts:profile', args = [cls.user.username])
+        cls.GROUP_LIST = reverse('posts:group_list', args=[cls.group.slug])
+        cls.PROFILE = reverse('posts:profile', args=[cls.user.username])
         cls.post = Post.objects.create(
             pk='3',
             text='Тестовый пост',
             author=cls.user,
             group=cls.group,
         )
-        cls.POST_DETAIL = reverse('posts:post_detail', args = [cls.post.pk])
-        cls.POST_EDIT = reverse('posts:post_edit', args = [cls.post.pk])
+        cls.POST_DETAIL = reverse('posts:post_detail', args=[cls.post.pk])
+        cls.POST_EDIT = reverse('posts:post_edit', args=[cls.post.pk])
 
         cls.guest_client = Client()
         cls.authorized_client = Client()
@@ -58,17 +57,15 @@ class PostURLTests(TestCase):
                 response = client.get(url)
                 self.assertEqual(response.status_code, status)
 
-
-    
     def test_post_edit_guest(self):
         # проверка изменения поста
         response = self.guest_client.get(self.POST_EDIT)
-        self.assertRedirects(response, f'/auth/login/?next=/posts/{self.post.pk}/edit/')  
+        self.assertRedirects(response, f'{LOGIN}?next={self.POST_EDIT}')
 
     def test_post_create_guest(self):
         # проверка создания поста
         response = self.guest_client.get(CREATE)
-        self.assertRedirects(response, '/auth/login/?next=/create/')
+        self.assertRedirects(response, f'{LOGIN}?next={CREATE}')
 
     def test_urls_uses_correct_template(self):
         # адреса используют корректный шаблон
@@ -84,7 +81,3 @@ class PostURLTests(TestCase):
             with self.subTest(adress=adress):
                 response = self.authorized_client.get(adress)
                 self.assertTemplateUsed(response, template)
-
-
-
-

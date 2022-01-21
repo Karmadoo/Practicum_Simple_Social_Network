@@ -31,7 +31,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     '[::1]',
     'testserver',
-    '*'
+    '*',
 ]
 
 
@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'sorl.thumbnail',
 ]
 
 MIDDLEWARE = [
@@ -144,7 +145,5 @@ PASSWORD_REST_URL = 'users:password_reset'
 EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 
 EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')
-
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver', ]
 
 CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
