@@ -6,6 +6,7 @@ from posts.forms import PostForm
 from posts.models import Post, Group, User
 
 POST_CREATE = reverse('posts:post_create')
+PROFILE = reverse('posts:profile', args={'SomeUsername'})
 
 
 class PostCreateFormTest(TestCase):
@@ -35,60 +36,59 @@ class PostCreateFormTest(TestCase):
         cls.form = PostForm()
 
     def test_create_post(self):
-        '''Создание поста'''
+        '''Post creating'''
         post_count = Post.objects.count()
         form_data = {
-            'text': self.post.text,
-            'group': self.group.id,
+            'text': 'some text',
+            'group': self.one_more_group.id,
         }
         posts_before = set(Post.objects.all())
-        self.authorized_client.post(
+        response = self.authorized_client.post(
             POST_CREATE,
             data=form_data,
             follow=True
         )
         posts_after = set(Post.objects.all())
         new_post_list = list(posts_after.difference(posts_before))
+        new_post = new_post_list[0]
         self.assertEqual(Post.objects.count(), post_count + 1)
         self.assertEqual(len(new_post_list), 1)
-        self.assertEqual(new_post_list[0].text, self.post.text)
-        self.assertEqual(new_post_list[0].group.id, self.group.id)
+        self.assertEqual(new_post.text, form_data['text'])
+        self.assertEqual(new_post.group.id, form_data['group'])
+        self.assertEqual(new_post.author, self.user)
+        self.assertRedirects(response, PROFILE)
 
     def test_post_edit(self):
-        '''Редактирование поста'''
+        '''Post editing'''
         posts_count = Post.objects.count()
         form_data = {
             'text': 'Измененный пост',
             'group': self.one_more_group.id,
-            'author': self.user,
         }
         response = self.authorized_client.post(
             self.POST_EDIT,
             data=form_data,
             follow=True
         )
-        post_list = Post.objects.all()
+        edited_post = Post.objects.get(pk=self.post.pk)
         # import pdb; pdb.set_trace()
         self.assertRedirects(response, self.POST_DETAIL)
         self.assertEqual(Post.objects.count(), posts_count)
-        self.assertEqual(len(post_list), 1)
-        self.assertEqual(post_list[0].text, 'Измененный пост')
-        self.assertEqual(post_list[0].group.id, self.one_more_group.id)
-        self.assertEqual(post_list[0].author, self.post.author)
+        self.assertEqual(edited_post.text, form_data['text'])
+        self.assertEqual(edited_post.group.id, form_data['group'])
+        self.assertEqual(edited_post.author, self.post.author)
 
     def test_create_post_has_correct_form(self):
         '''Шаблон создания поста сформирован с правильным контекстом'''
-        response_create = self.authorized_client.get(POST_CREATE)
-        response_edit = self.authorized_client.get(self.POST_EDIT)
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField
-        }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                form_field_create = response_create.context.get(
-                    'form').fields.get(value)
-                form_field_edit = response_edit.context.get(
-                    'form').fields.get(value)
-                self.assertIsInstance(form_field_create, expected)
-                self.assertIsInstance(form_field_edit, expected)
+        urls = [POST_CREATE, self.POST_EDIT]
+        for i in urls:
+            response = self.authorized_client.get(i)
+            form_fields = {
+                'text': forms.fields.CharField,
+                'group': forms.fields.ChoiceField
+            }
+            for value, expected in form_fields.items():
+                with self.subTest(value=value):
+                    form_field = response.context.get(
+                        'form').fields.get(value)
+                    self.assertIsInstance(form_field, expected)

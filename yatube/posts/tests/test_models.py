@@ -9,24 +9,21 @@ class PostModelTest(TestCase):
         super().setUpClass()
         cls.user = User.objects.create_user(username='auth')
         cls.group = Group.objects.create(
-            title='Тестовая группа',
-            slug='Тестовый слаг',
-            description='Тестовое описание',
+            title='Test group',
+            slug='Test slug',
+            description='Test description',
         )
         cls.post = Post.objects.create(
             author=cls.user,
-            text='Тестовая группа',
+            text='Test post',
         )
 
     def test_models_has_correct_object_names(self):
         '''Checking that models has correct __str__ method.'''
-        group = self.group
-        post = self.post
-        self.assertEqual(group.title, str(group))
-        self.assertEqual(post.text, str(post))
+        self.assertEqual(self.group.title, str(self.group))
+        self.assertEqual(self.post.text, str(self.post.text))
 
     def test_group_has_correct_verbose_names(self):
-        group = self.group
         field_verboses = {
             'title': 'Заголовок',
             'slug': 'Уникальное название',
@@ -35,11 +32,10 @@ class PostModelTest(TestCase):
         for field, expected_value in field_verboses.items():
             with self.subTest(field=field):
                 self.assertEqual(
-                    group._meta.get_field(field).verbose_name, expected_value
+                    Group._meta.get_field(field).verbose_name, expected_value
                 )
 
     def test_post_has_correct_verbose_names(self):
-        post = self.post
         field_verboses = {
             'text': 'Текст поста',
             'pub_date': 'Дата публикации',
@@ -49,5 +45,5 @@ class PostModelTest(TestCase):
         for field, expected_value in field_verboses.items():
             with self.subTest(field=field):
                 self.assertEqual(
-                    post._meta.get_field(field).verbose_name, expected_value
+                    Post._meta.get_field(field).verbose_name, expected_value
                 )

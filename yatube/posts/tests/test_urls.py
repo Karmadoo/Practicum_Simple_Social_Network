@@ -1,17 +1,22 @@
 from http import HTTPStatus
-
+from http.client import NOT_FOUND
 
 from django.test import TestCase, Client
 from django.urls import reverse
-
 
 from posts.models import Post, Group, User
 
 
 MAIN_PAGE = reverse('posts:main_page')
 CREATE = reverse('posts:post_create')
+GROUP_LIST = reverse('posts:group_list', args=['test_slug'])
+PROFILE = reverse('posts:profile', args=['SomeUsername'])
 UNEXISTING = '/unexisting/'
 LOGIN = reverse('users:login')
+OK = HTTPStatus.OK
+NOT_FOUND = HTTPStatus.NOT_FOUND
+FOUND = HTTPStatus.FOUND
+CREATE_REDIRECT = f'{LOGIN}?next={CREATE}'
 
 
 class PostURLTests(TestCase):
@@ -19,65 +24,69 @@ class PostURLTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create(username='SomeUsername')
+        cls.another_user = User.objects.create(username='SomeAnotherUsername')
         cls.group = Group.objects.create(
             title='Тестовый заголовок',
             slug='test_slug',
             description='Тестовое описание',
         )
-        cls.GROUP_LIST = reverse('posts:group_list', args=[cls.group.slug])
-        cls.PROFILE = reverse('posts:profile', args=[cls.user.username])
         cls.post = Post.objects.create(
-            pk='3',
             text='Тестовый пост',
             author=cls.user,
             group=cls.group,
         )
         cls.POST_DETAIL = reverse('posts:post_detail', args=[cls.post.pk])
         cls.POST_EDIT = reverse('posts:post_edit', args=[cls.post.pk])
+        cls.POST_EDIT_REDIRECT = f'{LOGIN}?next={cls.POST_EDIT}'
 
-        cls.guest_client = Client()
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.user)
+        cls.guest = Client()
+        cls.author = Client()
+        cls.author.force_login(cls.user)
+        cls.another = Client()
+        cls.another.force_login(cls.another_user)
 
     def test_URLs(self):
         '''URLs availability test'''
         URLS = (
-            (MAIN_PAGE, self.guest_client, HTTPStatus.OK),
-            (self.GROUP_LIST, self.guest_client, HTTPStatus.OK),
-            (self.PROFILE, self.guest_client, HTTPStatus.OK),
-            (self.POST_DETAIL, self.guest_client, HTTPStatus.OK),
-            (self.POST_EDIT, self.authorized_client, HTTPStatus.OK),
-            (CREATE, self.authorized_client, HTTPStatus.OK),
-            (UNEXISTING, self.authorized_client, HTTPStatus.NOT_FOUND),
-            (self.POST_EDIT, self.guest_client, HTTPStatus.FOUND),
-            (CREATE, self.guest_client, HTTPStatus.FOUND),
+            (MAIN_PAGE, self.guest, OK),
+            (MAIN_PAGE, self.author, OK),
+            (GROUP_LIST, self.guest, OK),
+            (PROFILE, self.guest, OK),
+            (self.POST_DETAIL, self.guest, OK),
+            (self.POST_EDIT, self.author, OK),
+            (CREATE, self.author, OK),
+            (UNEXISTING, self.author, NOT_FOUND),
+            (self.POST_EDIT, self.guest, FOUND),
+            (CREATE, self.guest, FOUND),
+            (self.POST_EDIT, self.another, FOUND)
         )
         for url, client, status in URLS:
-            with self.subTest(url=url):
+            with self.subTest(url=url, client=client):
                 response = client.get(url)
                 self.assertEqual(response.status_code, status)
 
     def test_post_edit_guest(self):
-        # проверка изменения поста
-        response = self.guest_client.get(self.POST_EDIT)
-        self.assertRedirects(response, f'{LOGIN}?next={self.POST_EDIT}')
-
-    def test_post_create_guest(self):
-        # проверка создания поста
-        response = self.guest_client.get(CREATE)
-        self.assertRedirects(response, f'{LOGIN}?next={CREATE}')
+        '''Redirects test'''
+        redirects = [
+            [self.POST_EDIT, self.guest, self.POST_EDIT_REDIRECT],
+            [CREATE, self.guest, CREATE_REDIRECT],
+            [self.POST_EDIT, self.another, self.POST_DETAIL]
+        ]
+        # import pdb; pdb.set_trace()
+        for url, client, redirected_url in redirects:
+            with self.subTest(url=url, client=client):
+                self.assertRedirects(client.get(url), redirected_url)
 
     def test_urls_uses_correct_template(self):
-        # адреса используют корректный шаблон
+        '''Tamplates test'''
         templates_url_names = {
             MAIN_PAGE: 'posts/index.html',
-            self.GROUP_LIST: 'posts/group_list.html',
-            self.PROFILE: 'posts/profile.html',
+            GROUP_LIST: 'posts/group_list.html',
+            PROFILE: 'posts/profile.html',
             self.POST_DETAIL: 'posts/post_detail.html',
             self.POST_EDIT: 'posts/create_post.html',
             CREATE: 'posts/create_post.html',
         }
         for adress, template in templates_url_names.items():
             with self.subTest(adress=adress):
-                response = self.authorized_client.get(adress)
-                self.assertTemplateUsed(response, template)
+                self.assertTemplateUsed(self.author.get(adress), template)

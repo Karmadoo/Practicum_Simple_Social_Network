@@ -1,8 +1,5 @@
-import random
-
-
 from posts.settings import (
-    POSTS_PER_PAGE, POSTS_SECOND_PAGE, PAGE_START, PAGE_END
+    POSTS_PER_PAGE, POSTS_SECOND_PAGE
 )
 
 
@@ -13,6 +10,16 @@ from posts.models import Post, Group, User
 
 
 MAIN_PAGE = reverse('posts:main_page')
+MAIN_PAGE_PAGINATOR_SECOND = MAIN_PAGE + '?page=2'
+GROUP_LIST = reverse('posts:group_list', args=['test_slug'])
+GROUP_LIST_PAGINATOR_SECOND = f'{GROUP_LIST}?page=2'
+ANOTHER_GROUP_LIST = reverse(
+    'posts:group_list', args=['another_test_slug']
+)
+PROFILE = reverse('posts:profile', args=['SomeUsername'])
+PROFILE_PAGINATOR_SECOND = f'{PROFILE}?page=2'
+PAGE_START = 0
+PAGE_END = 9
 
 
 class PostURLTests(TestCase):
@@ -30,90 +37,100 @@ class PostURLTests(TestCase):
             slug='another_test_slug',
             description='Еще тестовое описание',
         )
-        cls.GROUP_LIST = reverse('posts:group_list', args=[cls.group.slug])
-        cls.ANOTHER_GROUP_LIST = reverse(
-            'posts:group_list', args=[cls.one_more_group.slug]
-        )
-        cls.PROFILE = reverse('posts:profile', args=[cls.user.username])
 
-        cls.posts = []
-        for i in range(13):
-            cls.posts.append(Post(
-                text=f'Тестовый псто {i}',
-                author=cls.user,
-                group=cls.group,
-                id=i,
-            ))
-        Post.objects.bulk_create(cls.posts)
-
-        cls.random_post = random.choice(
-            Post.objects.filter(id__range=(PAGE_START, PAGE_END))
+        cls.post = Post.objects.create(
+            text='Test post',
+            author=cls.user,
+            group=cls.group,
         )
         cls.POST_DETAIL = reverse(
-            'posts:post_detail', args=[cls.random_post.id]
+            'posts:post_detail', args=[cls.post.pk]
         )
-        cls.POST_EDIT = reverse('posts:post_edit', args=[cls.random_post.id])
+        cls.POST_EDIT = reverse('posts:post_edit', args=[cls.post.pk])
 
-        cls.guest_client = Client()
-        cls.authorized_client = Client()
-        cls.authorized_client.force_login(cls.user)
+        cls.guest = Client()
+        cls.author = Client()
+        cls.author.force_login(cls.user)
 
     def test_pages_has_correct_context(self):
         '''The page tamplates withs the right context'''
-        urls = [
-            MAIN_PAGE,
-            self.GROUP_LIST,
-            self.PROFILE,
-            self.POST_DETAIL,
-        ]
-        for url in urls:
+        urls = {
+            MAIN_PAGE: 'page_obj',
+            GROUP_LIST: 'page_obj',
+            PROFILE: 'page_obj',
+            self.POST_DETAIL: 'post',
+        }
+        for url, context_name in urls.items():
             with self.subTest(url=url):
-                response = self.authorized_client.get(url)
-                post_list = response.context['page_obj']
-                for checking_post in post_list:
-                    if checking_post.id == self.random_post.id:
-                        return checking_post
-                self.assertEqual(checking_post.text, self.random_post.text)
-                self.assertEqual(checking_post.author, self.random_post.author)
-                self.assertEqual(checking_post.group, self.random_post.group)
-                self.assertEqual(checking_post.id, self.random_post.id)
-
-    def test_paginators_first_page(self):
-        urls = [MAIN_PAGE, self.GROUP_LIST, self.PROFILE]
-        for url in urls:
-            with self.subTest(url=url):
-                response = self.client.get(url)
-                self.assertEqual(
-                    len(response.context['page_obj']), POSTS_PER_PAGE
-                )
-
-    def test_paginators_second_page(self):
-        urls = [MAIN_PAGE, self.GROUP_LIST, self.PROFILE]
-        for url in urls:
-            with self.subTest(url=url):
-                response = self.client.get(url + '?page=2')
-                self.assertEqual(
-                    len(response.context['page_obj']), POSTS_SECOND_PAGE
-                )
+                response = self.author.get(url)
+                if context_name == 'page_obj':
+                    post_list = response.context['page_obj']
+                    self.assertEqual(len(post_list), 1)
+                    checking_post = post_list[0]
+                else:
+                    checking_post = response.context['post']
+                self.assertEqual(checking_post.text, self.post.text)
+                self.assertEqual(checking_post.author, self.post.author)
+                self.assertEqual(checking_post.group, self.post.group)
+                self.assertEqual(checking_post.id, self.post.id)
 
     def test_group_list_has_correct_context(self):
-        '''Шаблон группы сформирован с правильным контекстом'''
-        response = self.authorized_client.get(self.GROUP_LIST)
-        group_object = response.context['group']
-        self.assertEqual(group_object.title, self.group.title)
-        self.assertEqual(group_object.description, self.group.description)
-        self.assertEqual(group_object.slug, self.group.slug)
-        self.assertEqual(group_object.pk, self.group.pk)
+        '''Group template with the right context'''
+        response = self.author.get(GROUP_LIST)
+        group = response.context['group']
+        self.assertEqual(group.title, self.group.title)
+        self.assertEqual(group.description, self.group.description)
+        self.assertEqual(group.slug, self.group.slug)
+        self.assertEqual(group.pk, self.group.pk)
 
     def test_profile_has_correct_context(self):
-        '''Шаблон профиля сформирован с правильным контекстом'''
-        response = self.authorized_client.get(self.PROFILE)
+        '''Profile tamplate with the right context'''
+        response = self.author.get(PROFILE)
         self.assertEqual(
             response.context['author'].username, self.user.username
         )
 
     def test_post_to_the_right_group(self):
-        '''Пост попадает в правильную группу'''
-        response = self.authorized_client.get(self.ANOTHER_GROUP_LIST)
-        group_object = response.context['page_obj']
-        self.assertNotIn(self.random_post, group_object)
+        '''Post in the right group'''
+        response = self.author.get(ANOTHER_GROUP_LIST)
+        group_posts = response.context['page_obj']
+        self.assertNotIn(self.post, group_posts)
+
+
+class PaginatorTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create(username='SomeUsername')
+        cls.group = Group.objects.create(
+            title='Тестовый заголовок',
+            slug='test_slug',
+            description='Тестовое описание',
+        )
+
+        cls.posts = []
+        for i in range(POSTS_PER_PAGE + POSTS_SECOND_PAGE):
+            cls.posts.append(Post(
+                text=f'Тестовый псто {i}',
+                author=cls.user,
+                group=cls.group,
+            ))
+        Post.objects.bulk_create(cls.posts)
+
+        cls.guest = Client()
+
+    def test_paginator(self):
+        urls = {
+            MAIN_PAGE: POSTS_PER_PAGE,
+            MAIN_PAGE_PAGINATOR_SECOND: POSTS_SECOND_PAGE,
+            GROUP_LIST: POSTS_PER_PAGE,
+            GROUP_LIST_PAGINATOR_SECOND: POSTS_SECOND_PAGE,
+            PROFILE: POSTS_PER_PAGE,
+            PROFILE_PAGINATOR_SECOND: POSTS_SECOND_PAGE,
+        }
+        for url, number in urls.items():
+            with self.subTest(url=url):
+                response = self.guest.get(url)
+                self.assertEqual(
+                    len(response.context['page_obj']), number
+                )
