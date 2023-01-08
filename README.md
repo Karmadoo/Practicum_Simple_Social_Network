@@ -3,7 +3,7 @@ Social network for bloggers
 Description
 With this project it will be possiable to create blogs
 
-Stack
+Stack:
 Python 3.7 
 
 Django 2.2.19
