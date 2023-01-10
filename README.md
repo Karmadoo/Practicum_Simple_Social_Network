@@ -13,8 +13,11 @@ Launch in dev mode:
 Create and activate venv 
 
 Install dependings from requirements.txt
+
 pip install -r requirements.txt
+
 In the folder manage.py run:
+
 python3 manage.py runserver
 
 Autor:
